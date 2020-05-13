@@ -1,6 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
-import { SheetsService } from '../sheets/sheets.service';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/auth.dto';
 import { JWTDecryptedDto } from '@common/dto/jwt.dto';
@@ -10,8 +9,7 @@ const bcrypt = require('bcrypt');
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly usersService: UsersService,
-    private readonly sheetsService: SheetsService
+    private readonly usersService: UsersService
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -55,10 +53,7 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    const todayTime = await this.sheetsService.getHoursToday(userInfo.userId);
-
-    const { email, hoursPerDay, name } = user;
-    const response = { email, hoursPerDay, name, todayTime };
+    const { password, ...response } = user;
 
     return response;
   }
