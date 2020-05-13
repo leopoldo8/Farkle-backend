@@ -9,7 +9,7 @@ export const UserSchema = new mongoose.Schema({
     required: true,
     type: String,
   },
-  hoursPerDay: {
+  exp: {
     required: true,
     type: Number,
   },
