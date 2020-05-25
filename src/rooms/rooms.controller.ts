@@ -1,6 +1,6 @@
-import { Controller, Post, UseGuards, Param, Body, Request, HttpCode, Get } from '@nestjs/common';
+import { Controller, Post, UseGuards, Param, Body, Request, HttpCode, Get, Put } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
-import { CreateDto, ReadyDto } from './dto/rooms.dto';
+import { CreateDto, ReadyDto, ScoreDto } from './dto/rooms.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('room')
@@ -26,10 +26,31 @@ export class RoomsController {
     return this.roomsService.getById(params.id);
   }
 
-  @Post('ready')
+  @Put(':id/ready')
   @HttpCode(200)
   @UseGuards(AuthGuard('jwt'))
-  readyPlayer(@Body() readyDto: ReadyDto, @Request() req) {
+  readyPlayer(@Param() readyDto: ReadyDto, @Request() req) {
     return this.roomsService.ready(readyDto.id, req.user);
+  }
+
+  @Put(':id/unready')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  unreadyPlayer(@Param() readyDto: ReadyDto, @Request() req) {
+    return this.roomsService.unready(readyDto.id, req.user);
+  }
+
+  @Put(':id/roll')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  rollPlayerDice(@Param() readyDto: ReadyDto, @Request() req) {
+    return this.roomsService.rollDice(readyDto.id, req.user);
+  }
+
+  @Put(':id/score')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  score(@Param() readyDto: ReadyDto, @Body() scoreDto: ScoreDto, @Request() req) {
+    return this.roomsService.score(scoreDto.dicesSelected, readyDto.id, req.user);
   }
 }

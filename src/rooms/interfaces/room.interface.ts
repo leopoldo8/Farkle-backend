@@ -18,6 +18,10 @@ export class Player {
   name: string;
   exp: number;
   isReady: boolean;
+  score: number;
+  dices: number;
+  rolls: number[];
+  bank: number;
 }
 
 export class Message {
