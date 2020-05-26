@@ -217,8 +217,7 @@ export class RoomsService {
     const maxScore = this.getScore(rolls);
 
     if (maxScore === 0) {
-      await this.skipTurn(room, true);
-      return 'Farkle';
+      return this.skipTurn(room, true);
     }
 
     const { players } = room;
@@ -230,6 +229,36 @@ export class RoomsService {
     return rolls;
   }
 
+  async bank(id: string, user: JWTDecryptedDto) {
+    const { room } = await this.getIndexAndVerify(id, user);
+    return this.skipTurn(room);
+  }
+
+  async chat(message: string, id: string, user: JWTDecryptedDto) {
+    const room = await this.getById(id);
+    const User = await this.usersService.get(user);
+
+    const indexPlayer = room.players.findIndex((player) => player.email === User.email);
+
+    if (indexPlayer === -1) {
+      throw new BadRequestException('You are not in this room');
+    }
+
+    const { chat } = room;
+    chat.push({
+      message,
+      systemMessage: true,
+      from: User.name,
+    });
+
+    const { chat: newChat } = await this.findOneAndUpdate(room.name, { chat }, {
+      useFindAndModify: false,
+      new: true,
+    });
+
+    return newChat;
+  }
+
   async skipTurn(room: Room, hasFarkle?: boolean) {
     const current = room.turn.current + 1;
     const playerId = room.players.find((player) => player.email !== room.turn.playerId).email;
@@ -238,10 +267,12 @@ export class RoomsService {
     const indexPlayer = players.findIndex((player) => player.email === room.turn.playerId);
     players[indexPlayer].dices = 6;
     players[indexPlayer].rolls = [];
-    if (!hasFarkle) { players[indexPlayer].bank += players[indexPlayer].score; }
+    if (!hasFarkle) {
+      players[indexPlayer].bank += players[indexPlayer].score;
+    }
     players[indexPlayer].score = 0;
 
-    return this.findOneAndUpdate(room.name, {
+    const newRoom = await this.findOneAndUpdate(room.name, {
       turn: {
         current,
         playerId,
@@ -251,6 +282,8 @@ export class RoomsService {
       useFindAndModify: false,
       new: true,
     });
+
+    return newRoom;
   }
 
   async score(dicesSelected: number[], id: string, user: JWTDecryptedDto) {
@@ -290,6 +323,7 @@ export class RoomsService {
       new: true,
     });
 
+    return players[indexPlayer];
   }
 
   getScore(dices: number[]) {

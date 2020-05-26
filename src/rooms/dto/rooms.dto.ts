@@ -1,4 +1,4 @@
-import { IsNotEmpty, MaxLength, IsMongoId, IsArray, ValidateNested, ArrayMinSize, ArrayMaxSize, IsInt } from 'class-validator';
+import { IsNotEmpty, MaxLength, IsMongoId, IsArray, ArrayMinSize, ArrayMaxSize, IsInt, IsString } from 'class-validator';
 
 export class CreateDto {
   @IsNotEmpty()
@@ -14,8 +14,16 @@ export class ReadyDto {
 
 export class ScoreDto {
   @IsArray()
+  @IsNotEmpty({ each: true })
   @ArrayMinSize(1)
   @ArrayMaxSize(6)
   @IsInt({ each: true })
   dicesSelected: number[];
+}
+
+export class MessageDto {
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(350)
+  message: string;
 }

@@ -1,6 +1,6 @@
 import { Controller, Post, UseGuards, Param, Body, Request, HttpCode, Get, Put } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
-import { CreateDto, ReadyDto, ScoreDto } from './dto/rooms.dto';
+import { CreateDto, ReadyDto, ScoreDto, MessageDto } from './dto/rooms.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('room')
@@ -24,6 +24,13 @@ export class RoomsController {
   @UseGuards(AuthGuard('jwt'))
   getRoom(@Param() params) {
     return this.roomsService.getById(params.id);
+  }
+
+  @Put(':id/chat')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  sendMessage(@Param() readyDto: ReadyDto, @Body() messageDto: MessageDto, @Request() req) {
+    return this.roomsService.chat(messageDto.message, readyDto.id, req.user);
   }
 
   @Put(':id/ready')
@@ -52,5 +59,12 @@ export class RoomsController {
   @UseGuards(AuthGuard('jwt'))
   score(@Param() readyDto: ReadyDto, @Body() scoreDto: ScoreDto, @Request() req) {
     return this.roomsService.score(scoreDto.dicesSelected, readyDto.id, req.user);
+  }
+
+  @Put(':id/bank')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  bank(@Param() readyDto: ReadyDto, @Request() req) {
+    return this.roomsService.bank(readyDto.id, req.user);
   }
 }
