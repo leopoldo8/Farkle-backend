@@ -1,6 +1,6 @@
 import { Controller, Post, UseGuards, Param, Body, Request, HttpCode, Get, Put } from '@nestjs/common';
+import { CreateDto, ReadyDto, ScoreDto } from './dto/rooms.dto';
 import { RoomsService } from './rooms.service';
-import { CreateDto, ReadyDto, ScoreDto, MessageDto } from './dto/rooms.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('room')
@@ -24,27 +24,6 @@ export class RoomsController {
   @UseGuards(AuthGuard('jwt'))
   getRoom(@Param() params) {
     return this.roomsService.getById(params.id);
-  }
-
-  @Put(':id/chat')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  sendMessage(@Param() readyDto: ReadyDto, @Body() messageDto: MessageDto, @Request() req) {
-    return this.roomsService.chat(messageDto.message, readyDto.id, req.user);
-  }
-
-  @Put(':id/ready')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  readyPlayer(@Param() readyDto: ReadyDto, @Request() req) {
-    return this.roomsService.ready(readyDto.id, req.user);
-  }
-
-  @Put(':id/unready')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  unreadyPlayer(@Param() readyDto: ReadyDto, @Request() req) {
-    return this.roomsService.unready(readyDto.id, req.user);
   }
 
   @Put(':id/roll')

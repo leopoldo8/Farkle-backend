@@ -54,14 +54,14 @@ export class UsersService {
     const response = {
       email,
       name,
-      exp
+      exp,
     };
 
     return response;
   }
 
   async sign(signDto: SignDto) {
-    if (signDto.password.length < 8 || signDto.password.replace(/[^0-9]/g,"").length < 3) {
+    if (signDto.password.length < 8 || signDto.password.replace(/[^0-9]/g,'').length < 3) {
       throw new BadRequestException('Invalid password');
     }
 
@@ -84,7 +84,7 @@ export class UsersService {
       throw new BadRequestException('Make sure your password is at lest 8 characters long');
     }
 
-    if (createDto.password.replace(/[^0-9]/g,"").length < 3) {
+    if (createDto.password.replace(/[^0-9]/g, '').length < 3) {
       throw new BadRequestException('Make sure your password include at least one number');
     }
 
@@ -95,7 +95,7 @@ export class UsersService {
     const createdUser = new this.UserModel({
       ...createDto,
       password: await bcrypt.hash(createDto.password, 12),
-      exp: 0
+      exp: 0,
     });
 
     await createdUser.save();

@@ -1,7 +1,8 @@
 import { Injectable, Inject, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Room } from './interfaces/room.interface';
-import { CreateDto, ScoreDto } from './dto/rooms.dto';
+import { CreateDto } from './dto/rooms.dto';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/interfaces/user.interface';
 import { JWTDecryptedDto } from '../common/dto/jwt.dto';
 import { Model } from 'mongoose';
 import { randomIntFromInterval } from '../common/utils';
@@ -39,6 +40,10 @@ export class RoomsService {
     const player = {
       ...Player,
       isReady: false,
+      score: 0,
+      dices: 6,
+      rolls: [],
+      bank: 0,
     };
 
     const createdRoom = new this.RoomModel({
@@ -116,12 +121,26 @@ export class RoomsService {
     return room;
   }
 
-  async ready(id: string, user: JWTDecryptedDto) {
-    const room = await this.getById(id);
-    const Player = await this.usersService.get(user);
-
+  async leave(room: Room, user: User) {
     const { players } = room;
-    const actualPlayerIndex = players.findIndex((player) => player.email === Player.email);
+
+    const newPlayers = players.filter((player) => player.email !== user.email);
+
+    if (players.length === newPlayers.length) {
+      throw new BadRequestException('You are not in this room');
+    }
+
+    const newRoom = await this.findOneAndUpdate(room.name, { players: newPlayers }, {
+      useFindAndModify: false,
+      new: true,
+    });
+
+    return newRoom;
+  }
+
+  async ready(room: Room, user: User) {
+    const { players } = room;
+    const actualPlayerIndex = players.findIndex((player) => player.email === user.email);
     if (actualPlayerIndex === -1) {
       throw new BadRequestException('You are not in this room');
     }
@@ -144,12 +163,9 @@ export class RoomsService {
     return newRoom;
   }
 
-  async unready(id: string, user: JWTDecryptedDto) {
-    const room = await this.getById(id);
-    const Player = await this.usersService.get(user);
-
+  async unready(room: Room, user: User) {
     const { players } = room;
-    const actualPlayerIndex = players.findIndex((player) => player.email === Player.email);
+    const actualPlayerIndex = players.findIndex((player) => player.email === user.email);
     if (actualPlayerIndex === -1) {
       throw new BadRequestException('You are not in this room');
     }
@@ -234,11 +250,8 @@ export class RoomsService {
     return this.skipTurn(room);
   }
 
-  async chat(message: string, id: string, user: JWTDecryptedDto) {
-    const room = await this.getById(id);
-    const User = await this.usersService.get(user);
-
-    const indexPlayer = room.players.findIndex((player) => player.email === User.email);
+  async chat(message: string, room: Room, user: User) {
+    const indexPlayer = room.players.findIndex((player) => player.email === user.email);
 
     if (indexPlayer === -1) {
       throw new BadRequestException('You are not in this room');
@@ -248,7 +261,7 @@ export class RoomsService {
     chat.push({
       message,
       systemMessage: true,
-      from: User.name,
+      from: user.name,
     });
 
     const { chat: newChat } = await this.findOneAndUpdate(room.name, { chat }, {
