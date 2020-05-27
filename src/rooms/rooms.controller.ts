@@ -25,25 +25,4 @@ export class RoomsController {
   getRoom(@Param() params) {
     return this.roomsService.getById(params.id);
   }
-
-  @Put(':id/roll')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  rollPlayerDice(@Param() readyDto: ReadyDto, @Request() req) {
-    return this.roomsService.rollDice(readyDto.id, req.user);
-  }
-
-  @Put(':id/score')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  score(@Param() readyDto: ReadyDto, @Body() scoreDto: ScoreDto, @Request() req) {
-    return this.roomsService.score(scoreDto.dicesSelected, readyDto.id, req.user);
-  }
-
-  @Put(':id/bank')
-  @HttpCode(200)
-  @UseGuards(AuthGuard('jwt'))
-  bank(@Param() readyDto: ReadyDto, @Request() req) {
-    return this.roomsService.bank(readyDto.id, req.user);
-  }
 }

@@ -87,6 +87,10 @@ export class RoomsService {
       throw new BadRequestException('This room already started or finished');
     }
 
+    if (room.players.length > 1) {
+      throw new BadRequestException('This room is full');
+    }
+
     const player = {
       ...Player,
       isReady: false,
@@ -200,11 +204,8 @@ export class RoomsService {
     });
   }
 
-  async getIndexAndVerify(id: string, user: JWTDecryptedDto) {
-    const room = await this.getById(id);
-    const User = await this.usersService.get(user);
-
-    const indexPlayer = room.players.findIndex((player) => player.email === User.email);
+  async getIndexAndVerify(room: Room, user: User) {
+    const indexPlayer = room.players.findIndex((player) => player.email === user.email);
 
     if (room.status !== 'started') {
       throw new BadRequestException('This room did not started or already have finished the game');
@@ -214,17 +215,17 @@ export class RoomsService {
       throw new BadRequestException('You are not in this room');
     }
 
-    if (User.email !== room.turn.playerId) {
+    if (user.email !== room.turn.playerId) {
       throw new BadRequestException('It is not your turn');
     }
 
     const Player = room.players[indexPlayer];
 
-    return { indexPlayer, room, User, Player };
+    return { indexPlayer, Player };
   }
 
-  async rollDice(id: string, user: JWTDecryptedDto) {
-    const { room, indexPlayer, Player } = await this.getIndexAndVerify(id, user);
+  async rollDice(room: Room, user: User) {
+    const { indexPlayer, Player } = await this.getIndexAndVerify(room, user);
 
     const { dices } = Player;
 
@@ -242,11 +243,11 @@ export class RoomsService {
       useFindAndModify: false,
     });
 
-    return rolls;
+    return { hasFarkle: false, data: rolls };
   }
 
-  async bank(id: string, user: JWTDecryptedDto) {
-    const { room } = await this.getIndexAndVerify(id, user);
+  async bank(room: Room, user: User) {
+    await this.getIndexAndVerify(room, user);
     return this.skipTurn(room);
   }
 
@@ -296,11 +297,11 @@ export class RoomsService {
       new: true,
     });
 
-    return newRoom;
+    return { hasFarkle, data: newRoom };
   }
 
-  async score(dicesSelected: number[], id: string, user: JWTDecryptedDto) {
-    const { room, indexPlayer } = await this.getIndexAndVerify(id, user);
+  async score(dicesSelected: number[], room: Room, user: User) {
+    const { indexPlayer } = await this.getIndexAndVerify(room, user);
 
     const { dices, rolls } = room.players[indexPlayer];
 

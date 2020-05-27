@@ -4,7 +4,7 @@ import { UseGuards } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { RoomsService } from '../rooms/rooms.service';
 import { UsersService } from '../users/users.service';
-import { MessageDto } from './dto/rooms.dto';
+import { MessageDto, ScoreDto } from './dto/rooms.dto';
 
 @WebSocketGateway({ namespace: 'rooms' })
 export class RoomsGateway implements OnGatewayDisconnect, OnGatewayConnection {
@@ -77,5 +77,36 @@ export class RoomsGateway implements OnGatewayDisconnect, OnGatewayConnection {
     const newRoom = await this.roomService.unready(room, user);
 
     this.server.to(room.name).emit('unreadyClient', newRoom.players);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @SubscribeMessage('rollServer')
+  async roll(socket: Socket) {
+    const { room, user } = await this.verify(socket);
+
+    const { hasFarkle, data } = await this.roomService.rollDice(room, user);
+    const event = hasFarkle ? 'skipTurnClient' : 'rollClient';
+
+    this.server.to(room.name).emit(event, data);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @SubscribeMessage('scoreServer')
+  async score(socket: Socket, scoreDto: ScoreDto) {
+    const { room, user } = await this.verify(socket);
+
+    const player = await this.roomService.score(scoreDto.dicesSelected, room, user);
+
+    this.server.to(room.name).emit('scoreClient', player);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @SubscribeMessage('bankServer')
+  async bank(socket: Socket) {
+    const { room, user } = await this.verify(socket);
+
+    const { data } = await this.roomService.bank(room, user);
+
+    this.server.to(room.name).emit('skipTurnClient', data);
   }
 }
