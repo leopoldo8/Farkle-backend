@@ -9,8 +9,14 @@ export class CreateDto {
   name: string;
 
   @IsNotEmpty()
-  @IsNumber()
-  hoursPerDay: Number;
+  @IsAlphanumeric()
+  password: string;
+}
+
+export class SignDto {
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
 
   @IsNotEmpty()
   @IsAlphanumeric()

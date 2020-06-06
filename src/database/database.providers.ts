@@ -8,7 +8,7 @@ export const databaseProviders = [
       await mongoose.connect(mongodbURL, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        dbName: 'app'
+        dbName: 'app',
       }),
   },
 ];

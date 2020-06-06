@@ -1,17 +1,17 @@
 
-import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { JWTDecryptedDto } from '@common/dto/jwt.dto';
+import { AuthService } from '../auth/auth.service';
 import { User } from './interfaces/user.interface';
-import { CreateDto } from './dto/user.dto';
-import { JwtService } from '@nestjs/jwt';
-import { testCredentials } from '@common/secret';
+import { CreateDto, SignDto } from './dto/user.dto';
 import { Model } from 'mongoose';
 const bcrypt = require('bcrypt');
 
 @Injectable()
 export class UsersService {
   constructor(
-    private readonly jwtService: JwtService,
-    @Inject('USER_MODEL') private readonly UserModel: Model<User>
+    @Inject('USER_MODEL') private readonly UserModel: Model<User>,
+    private readonly authService: AuthService,
   ) {}
 
   async findById(id: string): Promise<User | undefined> {
@@ -26,9 +26,53 @@ export class UsersService {
     return this.UserModel.findOneAndDelete(query);
   }
 
-  async createForTesting() {
-    const response = await this.create(testCredentials);
-    return this.jwtService.decode(response.access_token);
+  async validateUser(email: string, password: string) {
+    const user = await this.findOne(email);
+
+    if (!user) {
+      return null;
+    }
+
+    const res = await bcrypt.compare(password, user.password);
+
+    if (res) {
+      return user;
+    }
+
+    return null;
+  }
+
+  async get(userInfo: JWTDecryptedDto) {
+    const user = await this.findById(userInfo.userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const { email, name, exp } = user;
+
+    const response = {
+      email,
+      name,
+      exp,
+    };
+
+    return response;
+  }
+
+  async sign(signDto: SignDto) {
+    if (signDto.password.length < 8 || signDto.password.replace(/[^0-9]/g,'').length < 3) {
+      throw new BadRequestException('Invalid password');
+    }
+
+    const { email, password } = signDto;
+    const user = await this.validateUser(email, password);
+
+    if (!user) {
+      throw new BadRequestException('Email or password is incorrect');
+    }
+
+    return this.authService.sign(user._id, user.email);
   }
 
   async create(createDto: CreateDto) {
@@ -40,7 +84,7 @@ export class UsersService {
       throw new BadRequestException('Make sure your password is at lest 8 characters long');
     }
 
-    if (createDto.password.replace(/[^0-9]/g,"").length < 3) {
+    if (createDto.password.replace(/[^0-9]/g, '').length < 3) {
       throw new BadRequestException('Make sure your password include at least one number');
     }
 
@@ -50,17 +94,12 @@ export class UsersService {
 
     const createdUser = new this.UserModel({
       ...createDto,
-      password: await bcrypt.hash(createDto.password, 12)
+      password: await bcrypt.hash(createDto.password, 12),
+      exp: 0,
     });
 
     await createdUser.save();
-    const payload = {
-      userId: createdUser._id,
-      email: createdUser.email
-    }
 
-    return {
-      access_token: this.jwtService.sign(payload)
-    }
+    return this.authService.sign(createdUser._id, createdUser.email);
   }
 }
