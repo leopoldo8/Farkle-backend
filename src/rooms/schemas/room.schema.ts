@@ -6,6 +6,9 @@ export const RoomSchema = new mongoose.Schema({
     type: String,
     unique: true
   },
+  password: {
+    type: String
+  },
   status: {
     type: String,
     enum: ['waiting', 'started', 'finished'],

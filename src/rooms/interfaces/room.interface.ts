@@ -1,6 +1,7 @@
 export interface Room {
   _id: string;
   name: string;
+  password?: string;
   turn: Turn;
   players: Player[];
   chat: Message[];
@@ -14,9 +15,9 @@ interface Turn {
 }
 
 export class Player {
-  email: string;
+  email?: string;
   name: string;
-  exp: number;
+  exp?: number;
   isReady: boolean;
   score: number;
   dices: number;

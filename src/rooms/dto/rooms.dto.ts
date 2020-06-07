@@ -2,8 +2,18 @@ import { IsNotEmpty, MaxLength, IsMongoId, IsArray, ArrayMinSize, ArrayMaxSize, 
 
 export class CreateDto {
   @IsNotEmpty()
+  @IsString()
   @MaxLength(25)
-  name: string;
+  roomName: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(25)
+  username: string;
+
+  @IsString()
+  @MaxLength(16)
+  roomPassword: string;
 }
 
 export class ReadyDto {

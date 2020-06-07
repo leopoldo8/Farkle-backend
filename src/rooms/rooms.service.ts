@@ -27,14 +27,18 @@ export class RoomsService {
   }
 
   async create(createDto: CreateDto, user: JWTDecryptedDto) {
-    const Player = await this.usersService.get(user);
+    const Player = user ? await this.usersService.get(user) : { name: createDto.username };
 
-    if (!createDto.name.match(/^[a-zA-Z ]+$/)) {
+    if (!createDto.roomName.match(/^[a-zA-Z ]+$/)) {
       throw new BadRequestException('Make sure the room name only contains alphabetic characters and spaces');
     }
 
-    if (await this.findOne(createDto.name)) {
+    if (await this.findOne(createDto.roomName)) {
       throw new BadRequestException('This room name already exists');
+    }
+
+    if (createDto.roomPassword && !createDto.roomPassword.match(/^(?=.*\d).{8,32}$/)) {
+      throw new BadRequestException('Password must be between 8 and 32 characters long and include at least one numeric digit');
     }
 
     const player = {
@@ -46,8 +50,9 @@ export class RoomsService {
       bank: 0,
     };
 
-    const createdRoom = new this.RoomModel({
-      ...createDto,
+    const room = {
+      name: createDto.roomName,
+      password: undefined,
       turn: {
         current: 0,
         playerId: '',
@@ -59,36 +64,42 @@ export class RoomsService {
         from: '',
       }],
       status: 'waiting',
-    });
+    };
+
+    if (createDto.roomPassword) {
+      room.password = createDto.roomPassword;
+    }
+
+    const createdRoom = new this.RoomModel(room);
 
     await createdRoom.save();
 
     return createdRoom;
   }
 
-  async enter(roomName: string, user: JWTDecryptedDto) {
-    const Player = await this.usersService.get(user);
+  async enter(createDto: CreateDto, user: JWTDecryptedDto) {
+    const Player = user ? await this.usersService.get(user) : { name: createDto.username };
 
-    if (!roomName.match(/^[a-zA-Z ]+$/)) {
+    if (!createDto.roomName.match(/^[a-zA-Z ]+$/)) {
       throw new BadRequestException('Make sure the room name only contains alphabetic characters and spaces');
     }
 
-    const room = await this.findOne(roomName);
+    const room = await this.findOne(createDto.roomName);
 
     if (!room) {
       throw new NotFoundException('Room not found');
     }
 
-    if (room.players.find((roomPlayer) => roomPlayer.email === Player.email)) {
-      throw new BadRequestException('You already entered this room');
+    if (room.players.length > 1) {
+      throw new BadRequestException('This room is full');
+    }
+
+    if (room.players.find((roomPlayer) => roomPlayer.name === Player.name)) {
+      throw new BadRequestException('This room already has a player with this name');
     }
 
     if (room.status !== 'waiting') {
       throw new BadRequestException('This room already started or finished');
-    }
-
-    if (room.players.length > 1) {
-      throw new BadRequestException('This room is full');
     }
 
     const player = {
@@ -99,15 +110,17 @@ export class RoomsService {
       rolls: [],
       bank: 0,
     };
+
     const { players, chat } = room;
     players.push(player);
+
     chat.push({
       message: `${player.name} entrou na sala`,
       systemMessage: true,
       from: '',
     });
 
-    const newRoom = await this.findOneAndUpdate(roomName, { players, chat }, {
+    const newRoom = await this.findOneAndUpdate(createDto.roomName, { players, chat }, {
       useFindAndModify: false,
       new: true,
     });
