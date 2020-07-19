@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Room } from './interfaces/room.interface';
-import { CreateDto } from './dto/rooms.dto';
+import { CreateDto, EnterDto } from './dto/rooms.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/interfaces/user.interface';
 import { JWTDecryptedDto } from '../common/dto/jwt.dto';
@@ -29,26 +29,13 @@ export class RoomsService {
   async create(createDto: CreateDto, user: JWTDecryptedDto) {
     const Player = user ? await this.usersService.get(user) : { name: createDto.username };
 
-    if (!createDto.roomName.match(/^[a-zA-Z ]+$/)) {
-      throw new BadRequestException('Make sure the room name only contains alphabetic characters and spaces');
-    }
-
     if (await this.findOne(createDto.roomName)) {
       throw new BadRequestException('This room name already exists');
     }
 
-    if (createDto.roomPassword && !createDto.roomPassword.match(/^(?=.*\d).{8,32}$/)) {
-      throw new BadRequestException('Password must be between 8 and 32 characters long and include at least one numeric digit');
+    if (createDto.roomPassword && !createDto.roomPassword.match(/^(?=.*\d).{3,32}$/)) {
+      throw new BadRequestException('Password must be between 3 and 32 characters long and include at least one numeric digit');
     }
-
-    const player = {
-      ...Player,
-      isReady: false,
-      score: 0,
-      dices: 6,
-      rolls: [],
-      bank: 0,
-    };
 
     const room = {
       name: createDto.roomName,
@@ -57,12 +44,8 @@ export class RoomsService {
         current: 0,
         playerId: '',
       },
-      players: [player],
-      chat: [{
-        message: `${player.name} entrou na sala`,
-        systemMessage: true,
-        from: '',
-      }],
+      players: [],
+      chat: [],
       status: 'waiting',
     };
 
@@ -74,17 +57,13 @@ export class RoomsService {
 
     await createdRoom.save();
 
-    return createdRoom;
+    return { id: createdRoom._id };
   }
 
-  async enter(createDto: CreateDto, user: JWTDecryptedDto) {
-    const Player = user ? await this.usersService.get(user) : { name: createDto.username };
+  async enter(enterDto: EnterDto, user?: JWTDecryptedDto, attempt?: boolean) {
+    const Player = user ? await this.usersService.get(user) : { name: enterDto.username };
 
-    if (!createDto.roomName.match(/^[a-zA-Z ]+$/)) {
-      throw new BadRequestException('Make sure the room name only contains alphabetic characters and spaces');
-    }
-
-    const room = await this.findOne(createDto.roomName);
+    const room = await this.findOne(enterDto.roomName);
 
     if (!room) {
       throw new NotFoundException('Room not found');
@@ -102,6 +81,18 @@ export class RoomsService {
       throw new BadRequestException('This room already started or finished');
     }
 
+    if (attempt) {
+      return { id: room._id };
+    }
+
+    if (room.password && !enterDto.roomPassword) {
+      throw new BadRequestException('Room requires password');
+    }
+
+    if (room.password && enterDto.roomPassword !== room.password) {
+      throw new BadRequestException('Wrong password');
+    }
+
     const player = {
       ...Player,
       isReady: false,
@@ -111,7 +102,13 @@ export class RoomsService {
       bank: 0,
     };
 
-    const { players, chat } = room;
+    const { players } = room;
+    let { chat } = room;
+
+    if (players.length === 0) {
+      chat = [];
+    }
+
     players.push(player);
 
     chat.push({
@@ -120,7 +117,7 @@ export class RoomsService {
       from: '',
     });
 
-    const newRoom = await this.findOneAndUpdate(createDto.roomName, { players, chat }, {
+    const newRoom = await this.findOneAndUpdate(enterDto.roomName, { players, chat }, {
       useFindAndModify: false,
       new: true,
     });
@@ -138,10 +135,10 @@ export class RoomsService {
     return room;
   }
 
-  async leave(room: Room, user: User) {
+  async leave(room: Room, username: string) {
     const { players } = room;
 
-    const newPlayers = players.filter((player) => player.email !== user.email);
+    const newPlayers = players.filter((player) => player.name !== username);
 
     if (players.length === newPlayers.length) {
       throw new BadRequestException('You are not in this room');
@@ -264,8 +261,8 @@ export class RoomsService {
     return this.skipTurn(room);
   }
 
-  async chat(message: string, room: Room, user: User) {
-    const indexPlayer = room.players.findIndex((player) => player.email === user.email);
+  async chat(message: string, room: Room, username: string) {
+    const indexPlayer = room.players.findIndex((player) => player.name === username);
 
     if (indexPlayer === -1) {
       throw new BadRequestException('You are not in this room');
@@ -275,7 +272,7 @@ export class RoomsService {
     chat.push({
       message,
       systemMessage: true,
-      from: user.name,
+      from: username,
     });
 
     const { chat: newChat } = await this.findOneAndUpdate(room.name, { chat }, {

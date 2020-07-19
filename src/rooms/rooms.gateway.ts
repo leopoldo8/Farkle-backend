@@ -1,15 +1,18 @@
-import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayDisconnect, OnGatewayConnection } from '@nestjs/websockets';
+import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayInit, OnGatewayDisconnect, OnGatewayConnection } from '@nestjs/websockets';
 import { AuthGuard } from '@nestjs/passport';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, Logger } from '@nestjs/common';
 import { Socket, Server } from 'socket.io';
 import { RoomsService } from '../rooms/rooms.service';
 import { UsersService } from '../users/users.service';
 import { MessageDto, ScoreDto } from './dto/rooms.dto';
+import { OptionalJwtAuthGuard } from '@common/optionalJwt.guard';
 
-@WebSocketGateway({ namespace: 'rooms' })
-export class RoomsGateway implements OnGatewayDisconnect, OnGatewayConnection {
+@WebSocketGateway()
+export class RoomsGateway implements OnGatewayInit, OnGatewayDisconnect, OnGatewayConnection {
   @WebSocketServer()
   server: Server;
+
+  private logger: Logger = new Logger('RoomsGateway');
 
   constructor(
     private readonly roomService: RoomsService,
@@ -17,50 +20,58 @@ export class RoomsGateway implements OnGatewayDisconnect, OnGatewayConnection {
   ) {}
 
   async verify(socket: Socket) {
-    const { userId, roomId } = socket.handshake.query;
-    if (!userId || !roomId) { socket.error('Missing information'); }
-
-    const user = await this.usersService.findById(userId);
-    if (!user) { socket.error('User not found'); }
+    const { userName, roomId } = socket.handshake.query;
+    if (!userName || !roomId) { socket.error('Missing information'); }
 
     const room = await this.roomService.getById(roomId);
     if (!room) { socket.error('Room not found'); }
 
-    return { user, room };
+    socket.join(room.name);
+    return { room, userName };
+  }
+
+  afterInit() {
+    this.logger.log('Gateway initialized');
   }
 
   async handleConnection(socket: Socket) {
-    const { room } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    socket.join(room.name);
-    socket.to(room.name).emit('joinRoom', room.players);
+    const newRoom = await this.roomService.enter({
+      username: userName,
+      roomName: room.name,
+      roomPassword: room.password
+    });
+
+    this.server.to(room.name).emit('joinRoom', newRoom);
   }
 
   async handleDisconnect(socket: Socket) {
-    const { room, user } = await this.verify(socket);
+    this.logger.log('Handle disconnect');
 
-    const newRoom = await this.roomService.leave(room, user);
+    const { room, userName } = await this.verify(socket);
+
+    const newRoom = await this.roomService.leave(room, userName);
 
     socket.leave(room.name);
-    socket.to(room.name).emit('leftRoom', newRoom.players);
+    this.server.to(room.name).emit('joinRoom', newRoom);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @SubscribeMessage('chatServer')
   async onMessage(socket: Socket, messageDto: MessageDto) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const newChat = await this.roomService.chat(messageDto.message, room, user);
+    const newChat = await this.roomService.chat(messageDto.message, room, userName);
 
-    this.server.to(room.name).emit('chatClient', newChat[newChat.length - 1]);
+    this.server.to(room.name).emit('chatClient', newChat);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtAuthGuard)
   @SubscribeMessage('readyServer')
   async onReady(socket: Socket) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const newRoom = await this.roomService.ready(room, user);
+    const newRoom = await this.roomService.ready(room, userName);
 
     if (newRoom.status === 'started') {
       this.server.to(room.name).emit('startClient', newRoom);
@@ -69,43 +80,43 @@ export class RoomsGateway implements OnGatewayDisconnect, OnGatewayConnection {
     }
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtAuthGuard)
   @SubscribeMessage('unreadyServer')
   async onUnready(socket: Socket) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const newRoom = await this.roomService.unready(room, user);
+    const newRoom = await this.roomService.unready(room, userName);
 
     this.server.to(room.name).emit('unreadyClient', newRoom.players);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtAuthGuard)
   @SubscribeMessage('rollServer')
   async roll(socket: Socket) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const { hasFarkle, data } = await this.roomService.rollDice(room, user);
+    const { hasFarkle, data } = await this.roomService.rollDice(room, userName);
     const event = hasFarkle ? 'skipTurnClient' : 'rollClient';
 
     this.server.to(room.name).emit(event, data);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtAuthGuard)
   @SubscribeMessage('scoreServer')
   async score(socket: Socket, scoreDto: ScoreDto) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const player = await this.roomService.score(scoreDto.dicesSelected, room, user);
+    const player = await this.roomService.score(scoreDto.dicesSelected, room, userName);
 
     this.server.to(room.name).emit('scoreClient', player);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(OptionalJwtAuthGuard)
   @SubscribeMessage('bankServer')
   async bank(socket: Socket) {
-    const { room, user } = await this.verify(socket);
+    const { room, userName } = await this.verify(socket);
 
-    const { data } = await this.roomService.bank(room, user);
+    const { data } = await this.roomService.bank(room, userName);
 
     this.server.to(room.name).emit('skipTurnClient', data);
   }

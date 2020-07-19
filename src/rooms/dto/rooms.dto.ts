@@ -1,4 +1,4 @@
-import { IsNotEmpty, MaxLength, IsMongoId, IsArray, ArrayMinSize, ArrayMaxSize, IsInt, IsString } from 'class-validator';
+import { IsNotEmpty, MaxLength, IsMongoId, IsArray, ArrayMinSize, ArrayMaxSize, IsInt, IsString, IsOptional } from 'class-validator';
 
 export class CreateDto {
   @IsNotEmpty()
@@ -11,6 +11,23 @@ export class CreateDto {
   @MaxLength(25)
   username: string;
 
+  @IsString()
+  @MaxLength(16)
+  roomPassword: string;
+}
+
+export class EnterDto {
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(25)
+  roomName: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(25)
+  username: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(16)
   roomPassword: string;
